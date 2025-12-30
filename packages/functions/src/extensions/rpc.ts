@@ -26,6 +26,16 @@ export const rpc = withKind<MutationHKT>()(
   extension({
     name: "core",
     functions: <C>() => ({
+      query: (options: any) => (contextProvider: () => Promise<C>) => async (input: any) => {
+        const parsed = parseArgs(options.args, input);
+        return parsed.match({
+          onSuccess: async (data: any) => {
+            const ctx = await contextProvider();
+            return options.handler(ctx, data);
+          },
+          onFailure: (error: Exception) => Promise.resolve(failure(error)),
+        });
+      },
       mutation: (options: any) => (contextProvider: () => Promise<C>) => async (input: any) => {
         const parsed = parseArgs(options.args, input);
         return parsed.match({
