@@ -9,10 +9,10 @@ describe("Lifecycle Hooks", () => {
     it("should execute query without hooks", async () => {
       const getUser = query({
         args: z.object({ id: z.number() }),
-        handler: async (args, ctx) => success({ id: args.id, name: "User" }),
+        handler: async (ctx, args) => success({ id: args.id, name: "User" }),
       });
 
-      const result = await getUser({ id: 123 }, {});
+      const result = await getUser({}, { id: 123 });
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -32,12 +32,12 @@ describe("Lifecycle Hooks", () => {
 
       getUser.beforeInvoke(beforeInvokeSpy);
 
-      await getUser({ id: 123 }, {});
+      await getUser({}, { id: 123 });
 
       expect(beforeInvokeSpy).toHaveBeenCalledTimes(1);
       expect(beforeInvokeSpy).toHaveBeenCalledWith(
-        { id: 123 },
-        expect.any(Object)
+        expect.any(Object),
+        { id: 123 }
       );
     });
 
@@ -51,7 +51,7 @@ describe("Lifecycle Hooks", () => {
 
       getUser.afterInvoke(afterInvokeSpy);
 
-      await getUser({ id: 123 }, {});
+      await getUser({}, { id: 123 };
 
       expect(afterInvokeSpy).toHaveBeenCalledTimes(1);
       expect(afterInvokeSpy).toHaveBeenCalledWith(
@@ -71,7 +71,7 @@ describe("Lifecycle Hooks", () => {
 
       getUser.onSuccess(onSuccessSpy);
 
-      await getUser({ id: 123 }, {});
+      await getUser({}, { id: 123 };
 
       expect(onSuccessSpy).toHaveBeenCalledTimes(1);
       expect(onSuccessSpy).toHaveBeenCalledWith(
@@ -92,7 +92,7 @@ describe("Lifecycle Hooks", () => {
 
       failingQuery.onError(onErrorSpy);
 
-      await failingQuery({ id: 123 }, {});
+      await failingQuery({}, { id: 123 };
 
       expect(onErrorSpy).toHaveBeenCalledTimes(1);
       expect(onErrorSpy).toHaveBeenCalledWith(
@@ -135,7 +135,7 @@ describe("Lifecycle Hooks", () => {
 
       testQuery.beforeInvoke(spy1).beforeInvoke(spy2).beforeInvoke(spy3);
 
-      await testQuery({}, {});
+      await testQuery({}, { id: 123 });
 
       expect(spy1).toHaveBeenCalledTimes(1);
       expect(spy2).toHaveBeenCalledTimes(1);
@@ -159,7 +159,7 @@ describe("Lifecycle Hooks", () => {
         .afterInvoke(() => order.push("after"))
         .onSuccess(() => order.push("success"));
 
-      await testQuery({}, {});
+      await testQuery({}, { id: 123 });
 
       expect(order).toEqual(["before1", "before2", "handler", "after", "success"]);
     });
@@ -176,7 +176,7 @@ describe("Lifecycle Hooks", () => {
 
       testQuery.beforeInvoke(asyncSpy);
 
-      await testQuery({}, {});
+      await testQuery({}, { id: 123 });
 
       expect(asyncSpy).toHaveBeenCalledTimes(1);
     });
@@ -193,7 +193,7 @@ describe("Lifecycle Hooks", () => {
 
       testQuery.afterInvoke(errorSpy);
 
-      const result = await testQuery({}, {});
+      const result = await testQuery({}, { id: 123 });
 
       // Should still succeed despite hook error
       expect(result.ok).toBe(true);
@@ -243,7 +243,7 @@ describe("Lifecycle Hooks", () => {
         .afterInvoke(afterSpy)
         .onSuccess(successSpy);
 
-      const result = await createUser({ name: "Alice" }, {});
+      const result = await createUser({}, { name: "Alice" });
 
       expect(result.ok).toBe(true);
       expect(beforeSpy).toHaveBeenCalledTimes(1);
@@ -294,7 +294,7 @@ describe("Lifecycle Hooks", () => {
         throw beforeInvokeError;
       }).onError(onErrorSpy);
 
-      const result = await testQuery({}, {});
+      const result = await testQuery({}, { id: 123 });
 
       expect(result.ok).toBe(false);
       expect(onErrorSpy).toHaveBeenCalledWith(
@@ -320,7 +320,7 @@ describe("Lifecycle Hooks", () => {
 
       testQuery.onError(onErrorSpy);
 
-      const result = await testQuery({}, {});
+      const result = await testQuery({}, { id: 123 });
 
       expect(result.ok).toBe(false);
       expect(onErrorSpy).toHaveBeenCalledWith(
@@ -371,7 +371,7 @@ describe("Lifecycle Hooks", () => {
           logs.push(`User created with ID: ${(data as any).id}`);
         });
 
-      await createUser({ name: "Alice" }, {});
+      await createUser({}, { name: "Alice" });
 
       expect(logs).toEqual(["Creating user: Alice", "User created with ID: 1"]);
     });
@@ -434,7 +434,7 @@ describe("Lifecycle Hooks", () => {
       // Add hook later
       testQuery.beforeInvoke(spy1);
 
-      await testQuery({}, {});
+      await testQuery({}, { id: 123 });
 
       expect(spy1).toHaveBeenCalledTimes(1);
       expect(spy2).not.toHaveBeenCalled();
@@ -450,9 +450,9 @@ describe("Lifecycle Hooks", () => {
 
       testQuery.beforeInvoke(spy);
 
-      await testQuery({}, {});
-      await testQuery({}, {});
-      await testQuery({}, {});
+      await testQuery({}, { id: 123 });
+      await testQuery({}, { id: 123 });
+      await testQuery({}, { id: 123 });
 
       expect(spy).toHaveBeenCalledTimes(3);
     });
@@ -527,7 +527,7 @@ describe("Lifecycle Hooks", () => {
           order.push("error");
         });
 
-      const result = await testQuery({}, {});
+      const result = await testQuery({}, { id: 123 });
 
       expect(result.ok).toBe(false);
       expect(order).toEqual(["before1", "before2", "error"]);
