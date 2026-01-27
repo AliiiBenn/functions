@@ -159,7 +159,7 @@ describe("defineContext (Native API)", () => {
               log: (msg: string) => console.log(`[${ctx.userId}]`, msg),
             }),
           },
-        }
+        ]
       );
 
       const getUser = t.query({

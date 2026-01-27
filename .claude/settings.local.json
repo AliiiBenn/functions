@@ -3,7 +3,16 @@
     "allow": [
       "Bash(npx tsx:*)",
       "Bash(git checkout:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(gh issue view:*)",
+      "Bash(tree:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm exec vitest run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

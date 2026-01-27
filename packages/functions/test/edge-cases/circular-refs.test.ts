@@ -55,6 +55,7 @@ describe("Edge Cases: Circular References", () => {
         root: {
           l1: { l2: { l3: { l4: { l5: { l6: { l7: { l8: { l9: { l10: { endpoint } } } } } } } } },
         },
+        runtimeContext: {}
       });
 
       expect(typeof api.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.endpoint).toBe("function");
@@ -74,7 +75,7 @@ describe("Edge Cases: Circular References", () => {
         deep = { [`level${i}`]: deep };
       }
 
-      const api = createAPI({ root: deep });
+      const api = createAPI({ root: deep, runtimeContext: {} });
 
       // Access the deeply nested endpoint
       let current = api;
@@ -96,7 +97,7 @@ describe("Edge Cases: Circular References", () => {
         });
       }
 
-      const api = createAPI({ root: endpoints });
+      const api = createAPI({ root: endpoints, runtimeContext: {} });
 
       // Test a few endpoints
       const result1 = await api.endpoint1({ id: 1 });
@@ -130,7 +131,7 @@ describe("Edge Cases: Circular References", () => {
         return result;
       };
 
-      const api = createAPI({ root: createLevel(3, 3) });
+      const api = createAPI({ root: createLevel(3, 3), runtimeContext: {} });
 
       expect(api).toBeDefined();
       expect(typeof api.level3_0.level2_0.level1_0.item0).toBe("function");

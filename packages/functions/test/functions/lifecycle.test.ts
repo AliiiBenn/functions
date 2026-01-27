@@ -14,8 +14,8 @@ describe("Lifecycle Hooks", () => {
 
       const result = await getUser({}, { id: 123 });
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
+      expect(result.isSuccess()).toBe(true);
+      if (result.isSuccess()) {
         expect(result.value).toEqual({ id: 123, name: "User" });
       }
     });
@@ -25,7 +25,7 @@ describe("Lifecycle Hooks", () => {
 
       const getUser = query({
         args: z.object({ id: z.number() }),
-        handler: async (args, ctx) => {
+        handler: async (ctx, args) => {
           return success({ id: args.id, name: "User" });
         },
       });
@@ -46,12 +46,12 @@ describe("Lifecycle Hooks", () => {
 
       const getUser = query({
         args: z.object({ id: z.number() }),
-        handler: async (args, ctx) => success({ id: args.id, name: "User" }),
+        handler: async (ctx, args) => success({ id: args.id, name: "User" }),
       });
 
       getUser.afterInvoke(afterInvokeSpy);
 
-      await getUser({}, { id: 123 };
+      await getUser({}, { id: 123 });
 
       expect(afterInvokeSpy).toHaveBeenCalledTimes(1);
       expect(afterInvokeSpy).toHaveBeenCalledWith(
@@ -66,12 +66,12 @@ describe("Lifecycle Hooks", () => {
 
       const getUser = query({
         args: z.object({ id: z.number() }),
-        handler: async (args, ctx) => success({ id: args.id, name: "User" }),
+        handler: async (ctx, args) => success({ id: args.id, name: "User" }),
       });
 
       getUser.onSuccess(onSuccessSpy);
 
-      await getUser({}, { id: 123 };
+      await getUser({}, { id: 123 });
 
       expect(onSuccessSpy).toHaveBeenCalledTimes(1);
       expect(onSuccessSpy).toHaveBeenCalledWith(
@@ -87,12 +87,12 @@ describe("Lifecycle Hooks", () => {
 
       const failingQuery = query({
         args: z.object({ id: z.number() }),
-        handler: async (args, ctx) => failure(testError),
+        handler: async (ctx, args) => failure(testError),
       });
 
       failingQuery.onError(onErrorSpy);
 
-      await failingQuery({}, { id: 123 };
+      await failingQuery({}, { id: 123 });
 
       expect(onErrorSpy).toHaveBeenCalledTimes(1);
       expect(onErrorSpy).toHaveBeenCalledWith(
@@ -107,14 +107,14 @@ describe("Lifecycle Hooks", () => {
 
       const strictQuery = query({
         args: z.object({ id: z.number() }),
-        handler: async (args, ctx) => success(args),
+        handler: async (ctx, args) => success(args),
       });
 
       strictQuery.onError(onErrorSpy);
 
       const result = await strictQuery({ id: "invalid" as any }, {});
 
-      expect(result.ok).toBe(false);
+      expect(result.isSuccess()).toBe(false);
       expect(onErrorSpy).toHaveBeenCalledTimes(1);
       expect(onErrorSpy).toHaveBeenCalledWith(
         { id: "invalid" },
@@ -130,7 +130,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => success("done"),
+        handler: async (ctx, args) => success("done"),
       });
 
       testQuery.beforeInvoke(spy1).beforeInvoke(spy2).beforeInvoke(spy3);
@@ -147,7 +147,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => {
+        handler: async (ctx, args) => {
           order.push("handler");
           return success("done");
         },
@@ -171,7 +171,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => success("done"),
+        handler: async (ctx, args) => success("done"),
       });
 
       testQuery.beforeInvoke(asyncSpy);
@@ -188,7 +188,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => success("done"),
+        handler: async (ctx, args) => success("done"),
       });
 
       testQuery.afterInvoke(errorSpy);
@@ -196,7 +196,7 @@ describe("Lifecycle Hooks", () => {
       const result = await testQuery({}, { id: 123 });
 
       // Should still succeed despite hook error
-      expect(result.ok).toBe(true);
+      expect(result.isSuccess()).toBe(true);
     });
 
     it("should chain hook methods", async () => {
@@ -207,7 +207,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({ value: z.number() }),
-        handler: async (args, ctx) => success(args.value * 2),
+        handler: async (ctx, args) => success(args.value * 2),
       });
 
       // Chain all hooks
@@ -234,7 +234,7 @@ describe("Lifecycle Hooks", () => {
 
       const createUser = mutation({
         args: z.object({ name: z.string() }),
-        handler: async (args, ctx) =>
+        handler: async (ctx, args) =>
           success({ id: 1, name: args.name }),
       });
 
@@ -245,7 +245,7 @@ describe("Lifecycle Hooks", () => {
 
       const result = await createUser({}, { name: "Alice" });
 
-      expect(result.ok).toBe(true);
+      expect(result.isSuccess()).toBe(true);
       expect(beforeSpy).toHaveBeenCalledTimes(1);
       expect(afterSpy).toHaveBeenCalledTimes(1);
       expect(successSpy).toHaveBeenCalledWith(
@@ -264,14 +264,14 @@ describe("Lifecycle Hooks", () => {
 
       const failingMutation = mutation({
         args: z.object({}),
-        handler: async (args, ctx) => failure(testError),
+        handler: async (ctx, args) => failure(testError),
       });
 
       failingMutation.onError(errorSpy);
 
       const result = await failingMutation({}, {});
 
-      expect(result.ok).toBe(false);
+      expect(result.isSuccess()).toBe(false);
       expect(errorSpy).toHaveBeenCalledWith(
         {},
         {},
@@ -287,7 +287,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => success("done"),
+        handler: async (ctx, args) => success("done"),
       });
 
       testQuery.beforeInvoke(() => {
@@ -296,7 +296,7 @@ describe("Lifecycle Hooks", () => {
 
       const result = await testQuery({}, { id: 123 });
 
-      expect(result.ok).toBe(false);
+      expect(result.isSuccess()).toBe(false);
       expect(onErrorSpy).toHaveBeenCalledWith(
         {},
         {},
@@ -313,7 +313,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => {
+        handler: async (ctx, args) => {
           throw handlerError;
         },
       });
@@ -322,7 +322,7 @@ describe("Lifecycle Hooks", () => {
 
       const result = await testQuery({}, { id: 123 });
 
-      expect(result.ok).toBe(false);
+      expect(result.isSuccess()).toBe(false);
       expect(onErrorSpy).toHaveBeenCalledWith(
         {},
         {},
@@ -339,7 +339,7 @@ describe("Lifecycle Hooks", () => {
 
       const failingQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => {
+        handler: async (ctx, args) => {
           throw new Error("Handler failed");
         },
       });
@@ -348,7 +348,7 @@ describe("Lifecycle Hooks", () => {
 
       const result = await failingQuery({}, {});
 
-      expect(result.ok).toBe(false);
+      expect(result.isSuccess()).toBe(false);
       expect(afterSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy).toHaveBeenCalled();
     });
@@ -360,7 +360,7 @@ describe("Lifecycle Hooks", () => {
 
       const createUser = mutation({
         args: z.object({ name: z.string() }),
-        handler: async (args, ctx) => success({ id: 1, ...args }),
+        handler: async (ctx, args) => success({ id: 1, ...args }),
       });
 
       createUser
@@ -381,7 +381,7 @@ describe("Lifecycle Hooks", () => {
 
       const slowQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => {
+        handler: async (ctx, args) => {
           const start = Date.now();
           await new Promise((resolve) => setTimeout(resolve, 50));
           const end = Date.now();
@@ -407,7 +407,7 @@ describe("Lifecycle Hooks", () => {
 
       const createUser = mutation({
         args: z.object({ email: z.string().email() }),
-        handler: async (args, ctx) => success({ email: args.email }),
+        handler: async (ctx, args) => success({ email: args.email }),
       });
 
       createUser.onError((ctx, args, error) => {
@@ -428,7 +428,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => success("done"),
+        handler: async (ctx, args) => success("done"),
       });
 
       // Add hook later
@@ -445,7 +445,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => success("done"),
+        handler: async (ctx, args) => success("done"),
       });
 
       testQuery.beforeInvoke(spy);
@@ -476,8 +476,8 @@ describe("Lifecycle Hooks", () => {
 
       const result = await testQuery({}, { userId: "test-user" });
 
-      expect(result.ok).toBe(true);
-      if (result.ok) {
+      expect(result.isSuccess()).toBe(true);
+      if (result.isSuccess()) {
         expect(result.value).toBe("test-user");
       }
     });
@@ -485,7 +485,7 @@ describe("Lifecycle Hooks", () => {
     it("should infer types from args", async () => {
       const testQuery = query({
         args: z.object({ id: z.number(), name: z.string() }),
-        handler: async (args, ctx) => success(args),
+        handler: async (ctx, args) => success(args),
       });
 
       testQuery.onSuccess((ctx, args, data) => {
@@ -496,7 +496,7 @@ describe("Lifecycle Hooks", () => {
 
       const result = await testQuery({ id: 123, name: "Test" }, {});
 
-      expect(result.ok).toBe(true);
+      expect(result.isSuccess()).toBe(true);
     });
   });
 
@@ -506,7 +506,7 @@ describe("Lifecycle Hooks", () => {
 
       const testQuery = query({
         args: z.object({}),
-        handler: async (args, ctx) => {
+        handler: async (ctx, args) => {
           order.push("handler");
           return success("done");
         },
@@ -527,9 +527,9 @@ describe("Lifecycle Hooks", () => {
           order.push("error");
         });
 
-      const result = await testQuery({}, { id: 123 });
+      const result = await testQuery({}, {});
 
-      expect(result.ok).toBe(false);
+      expect(result.isSuccess()).toBe(false);
       expect(order).toEqual(["before1", "before2", "error"]);
       expect(order).not.toContain("before3");
     });

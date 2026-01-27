@@ -34,23 +34,25 @@ pnpm add @deessejs/functions
 ### The New Simplified Way
 
 ```ts
-import { createNativeAPI } from "@deessejs/functions";
-import { success } from "@deessejs/functions";
+import { defineContext, success } from "@deessejs/functions";
 import z from "zod";
 
-// 1. Create your API builder
-const { t, createAPI } = createNativeAPI<{
+// 1. Define your context ONCE (single source of truth)
+const { t, createAPI } = defineContext<{
   userId: string;
   database: any;
-}>();
+}>({
+  userId: "user-123",
+  database: myDatabase
+});
 
 // 2. Define queries (read operations)
 const getUser = t.query({
   args: z.object({
     id: z.number(),
   }),
-  handler: async (args, ctx) => {
-    // Note: args comes BEFORE ctx in the new API
+  handler: async (ctx, args) => {
+    // Note: ctx comes BEFORE args
     return success({
       id: args.id,
       requestedBy: ctx.userId,
@@ -64,17 +66,14 @@ const createUser = t.mutation({
     name: z.string().min(2),
     email: z.string().email(),
   }),
-  handler: async (args, ctx) => {
+  handler: async (ctx, args) => {
     const user = ctx.database.users.create(args);
     return success(user);
   },
 });
 
-// 4. Create and use the API
-const api = createAPI(
-  { getUser, createUser },
-  { userId: "user-123", database: myDatabase }
-);
+// 4. Create the API (no context needed here!)
+const api = createAPI({ getUser, createUser });
 
 // 5. Call your endpoints
 async function main() {
@@ -97,11 +96,15 @@ async function main() {
 Context is the data available to all your handlers:
 
 ```ts
-const { t, createAPI } = createNativeAPI<{
+const { t, createAPI } = defineContext<{
   userId: string;
   database: Database;
   logger: Logger;
-}>();
+}>({
+  userId: "user-123",
+  database: myDatabase,
+  logger: myLogger
+});
 ```
 
 ### Queries
@@ -111,7 +114,7 @@ Queries are read-only operations:
 ```ts
 const getUser = t.query({
   args: z.object({ id: z.number() }),
-  handler: async (args, ctx) => {
+  handler: async (ctx, args) => {
     return success({ id: args.id, name: "User" });
   },
 });
@@ -124,7 +127,7 @@ Mutations are write operations:
 ```ts
 const createUser = t.mutation({
   args: z.object({ name: z.string() }),
-  handler: async (args, ctx) => {
+  handler: async (ctx, args) => {
     return success({ id: 1, name: args.name });
   },
 });
@@ -135,22 +138,19 @@ const createUser = t.mutation({
 Organize endpoints logically:
 
 ```ts
-const api = createAPI(
-  {
-    users: t.router({
-      profile: t.router({
-        get: t.query({ ... }),
-        update: t.mutation({ ... }),
-      }),
-      settings: t.query({ ... }),
-    }),
-    posts: t.router({
+const api = createAPI({
+  users: t.router({
+    profile: t.router({
       get: t.query({ ... }),
-      list: t.query({ ... }),
+      update: t.mutation({ ... }),
     }),
-  },
-  context
-);
+    settings: t.query({ ... }),
+  }),
+  posts: t.router({
+    get: t.query({ ... }),
+    list: t.query({ ... }),
+  }),
+});
 
 // Usage
 await api.users.profile.get({ id: 1 });
@@ -166,11 +166,11 @@ await api.users.settings.update({});
 Attach middleware to your operations:
 
 ```ts
-import { query } from "@deessejs/functions";
+import { query, success } from "@deessejs/functions";
 
 const getUser = query({
   args: z.object({ id: z.number() }),
-  handler: async (args, ctx) => success(args),
+  handler: async (ctx, args) => success(args),
 })
   .beforeInvoke((ctx, args) => {
     console.log(`Fetching user ${args.id}`);
@@ -188,11 +188,11 @@ const getUser = query({
 Better failure handling with causes vs exceptions:
 
 ```ts
-import { cause, Causes, successOutcome, failureOutcome } from "@deessejs/functions";
+import { query, cause, Causes, successOutcome, failureOutcome } from "@deessejs/functions";
 
 const getUser = query({
   args: z.object({ id: z.number() }),
-  handler: async (args, ctx) => {
+  handler: async (ctx, args) => {
     const user = await db.find(args.id);
     if (!user) {
       return failureOutcome(
@@ -227,9 +227,13 @@ const data = await fetchWithRetry("https://api.example.com/data");
 Flexible API naming:
 
 ```ts
-import { aliases } from "@deessejs/functions";
+import { query, aliases } from "@deessejs/functions";
 
-const getUser = query({ /* ... */ });
+const getUser = query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => success(args)
+});
+
 aliases(getUser, ["fetchUser", "retrieveUser", "getUserById"]);
 
 // All work the same
@@ -266,9 +270,9 @@ stream.invalidate("users:123", {
 
 ## Migration Guide
 
-### From Old API (HKT-based) to New API
+### From Old API (HKT-based) to New Native API
 
-**Old API:**
+**Old API (HKT-based):**
 
 ```ts
 import { defineContext, rpc } from "@deessejs/functions";
@@ -278,7 +282,7 @@ const { t, createAPI } = defineContext<{ userId: string }>()
 
 const getUser = t.query({
   args: z.object({ id: z.number() }),
-  handler: async (ctx, args) => {  // ctx BEFORE args ❌
+  handler: async (ctx, args) => {
     return success({ id: args.id, requestedBy: ctx.userId });
   },
 });
@@ -289,31 +293,30 @@ const api = createAPI({
 });
 ```
 
-**New API:**
+**New Native API:**
 
 ```ts
-import { createNativeAPI } from "@deessejs/functions";
+import { defineContext, success } from "@deessejs/functions";
 
-const { t, createAPI } = createNativeAPI<{ userId: string }>();
+const { t, createAPI } = defineContext<{ userId: string }>({
+  userId: "123"
+});
 
 const getUser = t.query({
   args: z.object({ id: z.number() }),
-  handler: async (args, ctx) => {  // args BEFORE ctx ✅
+  handler: async (ctx, args) => {
     return success({ id: args.id, requestedBy: ctx.userId });
   },
 });
 
-const api = createAPI(
-  { getUser },
-  { userId: "123" }
-);
+const api = createAPI({ getUser });
 ```
 
 **Key Changes:**
-1. ✅ Use `createNativeAPI()` instead of `defineContext().withExtensions([rpc])`
+1. ✅ Context defined ONCE in `defineContext(context)` - single source of truth
 2. ✅ No `rpc` extension needed - `query` and `mutation` are built-in
-3. ✅ Handler signature: `(args, ctx)` instead of `(ctx, args)`
-4. ✅ `createAPI(root, context)` instead of `createAPI({ root, runtimeContext })`
+3. ✅ Handler signature keeps `(ctx, args)` - context before arguments
+4. ✅ `createAPI(root)` - no context parameter needed!
 
 ---
 
@@ -323,20 +326,17 @@ Full end-to-end type safety:
 
 ```ts
 // TypeScript infers all types automatically
-const api = createAPI(
-  {
-    getUser: t.query({
-      args: z.object({ id: z.number() }),
-      handler: async (args, ctx) => {
-        return success({
-          id: args.id,        // number
-          name: string,     // inferred from return
-        } as const);
-      },
-    }),
-  },
-  { userId: "123" }
-);
+const api = createAPI({
+  getUser: t.query({
+    args: z.object({ id: z.number() }),
+    handler: async (ctx, args) => {
+      return success({
+        id: args.id,        // number
+        name: string,     // inferred from return
+      } as const);
+    },
+  }),
+});
 
 // Fully typed! ✅
 const result = await api.getUser({ id: 123 });
@@ -375,8 +375,8 @@ if (result.ok) {
 
 ```ts
 // Create separate contexts for different domains
-const userAPI = createNativeAPI<UserContext>({ ... });
-const postAPI = createNativeAPI<PostContext>({ ... });
+const userAPI = defineContext<UserContext>({ ... });
+const postAPI = defineContext<PostContext>({ ... });
 ```
 
 ### 2. Use Composable Schemas
@@ -398,7 +398,7 @@ const userSchema = commonFields.extend({
 ```ts
 const operation = t.mutation({
   args: z.object({ /* ... */ }),
-  handler: async (args, ctx) => {
+  handler: async (ctx, args) => {
     try {
       const result = await db.create(args);
       return success(result);
@@ -421,8 +421,17 @@ const operation = t.mutation({
 ### 4. Use Aliases for Backwards Compatibility
 
 ```ts
-const v1_getUser = query({ /* old implementation */ });
-const v2_getUser = query({ /* new implementation */ });
+import { query, aliases } from "@deessejs/functions";
+
+const v1_getUser = query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => success(args)
+});
+
+const v2_getUser = query({
+  args: z.object({ id: z.number() }),
+  handler: async (ctx, args) => success(args)
+});
 
 // Provide both
 aliases(v2_getUser, ["getUser", "fetchUser", "getUser_v1"]);
@@ -433,8 +442,7 @@ aliases(v2_getUser, ["getUser", "fetchUser", "getUser_v1"]);
 ## Full Example
 
 ```ts
-import { createNativeAPI } from "@deessejs/functions";
-import { success } from "@deessejs/functions";
+import { defineContext, success } from "@deessejs/functions";
 import { z } from "zod";
 
 // Context
@@ -448,13 +456,16 @@ interface Context {
   };
 }
 
-// Create API
-const { t, createAPI } = createNativeAPI<Context>();
+// Create API builder with context
+const { t, createAPI } = defineContext<Context>({
+  userId: "user-123",
+  database: myDatabase,
+});
 
 // Queries
 const getUser = t.query({
   args: z.object({ id: z.number() }),
-  handler: async (args, ctx) => {
+  handler: async (ctx, args) => {
     const user = await ctx.database.users.find(args.id);
     if (!user) {
       throw new Error(`User ${args.id} not found`);
@@ -469,25 +480,19 @@ const createUser = t.mutation({
     name: z.string().min(2),
     email: z.string().email(),
   }),
-  handler: async (args, ctx) => {
+  handler: async (ctx, args) => {
     const user = await ctx.database.users.create(args);
     return success({ id: user.id, ...args });
   },
 });
 
-// Create runtime
-const api = createAPI(
-  {
-    users: t.router({
-      get: getUser,
-      create: createUser,
-    }),
-  },
-  {
-    userId: "user-123",
-    database: myDatabase,
-  }
-);
+// Create API (no context needed here!)
+const api = createAPI({
+  users: t.router({
+    get: getUser,
+    create: createUser,
+  }),
+});
 
 // Use it
 async function main() {
@@ -522,10 +527,10 @@ MIT
 
 | Old (v0.0.x) | New (v0.1.0) |
 |---------------|--------------|
-| `defineContext().withExtensions([rpc])` | `createNativeAPI()` |
+| `defineContext().withExtensions([rpc])` | `defineContext(context)` |
 | `t.query()` from rpc extension | `t.query()` is native |
-| `handler: async (ctx, args)` | `handler: async (args, ctx)` |
-| `createAPI({ root, runtimeContext })` | `createAPI(root, context)` |
+| `handler: async (ctx, args)` | `handler: async (ctx, args)` ✅ (unchanged!) |
+| `createAPI({ root, runtimeContext })` | `defineContext(context); createAPI(root)` |
 | HKT-based types | Standard TypeScript generics |
 | Complex type errors | Simple, clear types |
 | Slow compilation | Fast compilation |

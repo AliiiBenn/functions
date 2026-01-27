@@ -1,7 +1,7 @@
 import { z, ZodType } from "zod";
 import { exception } from "../errors";
 import { Exception } from "../errors/types";
-import { AsyncResult, failure, success } from "../types";
+import { AsyncResult, Result, failure, success } from "../types";
 import { parseArgs } from "./parse";
 
 /**
@@ -105,8 +105,8 @@ export function query<
   };
 
   const execute = async (
-    input: Input,
-    context: TContext
+    context: TContext,
+    input: Input
   ): AsyncResult<TOutput, TError> => {
     // 1. Parse arguments
     const parsed = parseArgs(options.args, input);
@@ -155,7 +155,7 @@ export function query<
     }
 
     // 3. Execute handler
-    let result: AsyncResult<TOutput, TError>;
+    let result: Result<TOutput, TError>;
     try {
       result = await options.handler(context, data);
     } catch (err) {
@@ -186,7 +186,7 @@ export function query<
     }
 
     // 5. Dispatch based on result
-    if (result.ok) {
+    if (result.isSuccess()) {
       // Success - call onSuccess hooks
       for (const hook of state.onSuccessHooks) {
         try {
