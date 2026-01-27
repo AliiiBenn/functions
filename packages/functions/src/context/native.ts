@@ -4,22 +4,12 @@ import { Result, success, failure } from "../types";
 import { exception } from "../errors";
 
 /**
- * Runtime query definition that can be executed
- */
-type QueryFunction<Args, Output, Error> = (input: Args, context: any) => Promise<Result<Output, Error>>;
-
-/**
- * Runtime mutation definition that can be executed
- */
-type MutationFunction<Args, Output, Error> = (input: Args, context: any) => Promise<Result<Output, Error>>;
-
-/**
  * Type-safe query definition
  */
 export interface QueryDefinition<C, Args, Output, Error extends Exception = Exception> {
   readonly _type: "query";
   readonly args: ZodType<Args>;
-  readonly handler: (args: Args, ctx: C) => Promise<Result<Output, Error>>;
+  readonly handler: (ctx: C, args: Args) => Promise<Result<Output, Error>>;
 }
 
 /**
@@ -28,90 +18,7 @@ export interface QueryDefinition<C, Args, Output, Error extends Exception = Exce
 export interface MutationDefinition<C, Args, Output, Error extends Exception = Exception> {
   readonly _type: "mutation";
   readonly args: ZodType<Args>;
-  readonly handler: (args: Args, ctx: C) => Promise<Result<Output, Error>>;
-}
-
-/**
- * Native API builder with query, mutation, and router methods
- * No HKT, no complex type magic - just straightforward TypeScript
- */
-export type NativeAPI<C> = {
-  /**
-   * Creates a query endpoint for read-only operations
-   *
-   * @template Args - Input arguments type (inferred from Zod schema)
-   * @template Output - Return type on success
-   * @template Error - Exception type on failure
-   * @param options - Query configuration
-   * @returns A query function that can be executed with validated input
-   */
-  query: <
-    Args extends ZodType<any, any, any>,
-    Output,
-    Error extends Exception = Exception
-  >(
-    options: {
-      args: Args;
-      handler: (args: z.infer<Args>, ctx: C) => Promise<Result<Output, Error>>;
-    }
-  ) => QueryDefinition<C, z.infer<Args>, Output, Error>;
-
-  /**
-   * Creates a mutation endpoint for write operations
-   *
-   * @template Args - Input arguments type (inferred from Zod schema)
-   * @template Output - Return type on success
-   * @template Error - Exception type on failure
-   * @param options - Mutation configuration
-   * @returns A mutation function that can be executed with validated input
-   */
-  mutation: <
-    Args extends ZodType<any, any, any>,
-    Output,
-    Error extends Exception = Exception
-  >(
-    options: {
-      args: Args;
-      handler: (args: z.infer<Args>, ctx: C) => Promise<Result<Output, Error>>;
-    }
-  ) => MutationDefinition<C, z.infer<Args>, Output, Error>;
-
-  /**
-   * Groups endpoints together (organizational only, identity function)
-   *
-   * @template R - Routes object type
-   * @param routes - Object containing endpoint definitions
-   * @returns The same routes object (no transformation)
-   *
-   * @example
-   * ```ts
-   * const api = t.router({
-   *   users: t.router({
-   *     get: t.query({ ... }),
-   *     list: t.query({ ... }),
-   *   }),
-   *   posts: t.router({
-   *     get: t.query({ ... }),
-   *   })
-   * });
-   * ```
-   */
-  router: <R extends Record<string, any>>(routes: R) => R;
-};
-
-/**
- * Options for creating a native API
- */
-export interface NativeAPIOptions<C> {
-  /**
-   * Initial context values
-   */
-  context?: C;
-
-  /**
-   * Extensions to add (simple, no HKT)
-   */
-  extensions?: NativeExtension<C>[];
+  readonly handler: (ctx: C, args: Args) => Promise<Result<Output, Error>>;
 }
 
 /**
@@ -135,37 +42,96 @@ export interface NativeExtension<C> {
 }
 
 /**
- * Creates a native context builder with query, mutation, and router methods
+ * API builder with query, mutation, and router methods
+ * No HKT, no complex type magic - just straightforward TypeScript
+ */
+export type APIBuilder<C> = {
+  /**
+   * Creates a query endpoint for read-only operations
+   *
+   * @template Args - Input arguments type (inferred from Zod schema)
+   * @template Output - Return type on success
+   * @template Error - Exception type on failure
+   * @param options - Query configuration
+   * @returns A query definition
+   */
+  query: <
+    Args extends ZodType<any, any, any>,
+    Output,
+    Error extends Exception = Exception
+  >(
+    options: {
+      args: Args;
+      handler: (ctx: C, args: z.infer<Args>) => Promise<Result<Output, Error>>;
+    }
+  ) => QueryDefinition<C, z.infer<Args>, Output, Error>;
+
+  /**
+   * Creates a mutation endpoint for write operations
+   *
+   * @template Args - Input arguments type (inferred from Zod schema)
+   * @template Output - Return type on success
+   * @template Error - Exception type on failure
+   * @param options - Mutation configuration
+   * @returns A mutation definition
+   */
+  mutation: <
+    Args extends ZodType<any, any, any>,
+    Output,
+    Error extends Exception = Exception
+  >(
+    options: {
+      args: Args;
+      handler: (ctx: C, args: z.infer<Args>) => Promise<Result<Output, Error>>;
+    }
+  ) => MutationDefinition<C, z.infer<Args>, Output, Error>;
+
+  /**
+   * Groups endpoints together (organizational only, identity function)
+   *
+   * @template R - Routes object type
+   * @param routes - Object containing endpoint definitions
+   * @returns The same routes object (no transformation)
+   */
+  router: <R extends Record<string, any>>(routes: R) => R;
+};
+
+/**
+ * Creates a context builder with query, mutation, and router methods
  *
- * This is the new simplified API that replaces the HKT-based system.
+ * The context is defined ONCE here, making it the single source of truth.
+ * No need to pass context again in createAPI.
  *
  * @template C - Context type
- * @param options - Configuration options
+ * @param context - The runtime context data (single source of truth)
+ * @param extensions - Optional extensions to add
  * @returns Object with API builder (t) and createAPI function
  *
  * @example
  * ```ts
- * // Simple usage
- * const { t, createAPI } = createNativeAPI({
- *   context: { userId: "123" }
+ * // Define context once with data
+ * const { t, createAPI } = defineContext({
+ *   userId: "user-123",
+ *   database: myDatabase
  * });
  *
  * const getUser = t.query({
  *   args: z.object({ id: z.number() }),
- *   handler: async (args, ctx) => {
+ *   handler: async (ctx, args) => {  // ctx BEFORE args ✅
  *     return success({ id: args.id, requestedBy: ctx.userId });
  *   },
  * });
  *
- * const api = createAPI({
- *   root: { getUser },
- *   context: { userId: "123" }
- * });
+ * const api = createAPI({ getUser });  // No context needed here! ✅
  * ```
  */
-export function createNativeAPI<C = {}>(options: NativeAPIOptions<Partial<C>> = {}): {
-  type ContextType = C extends Record<string, never> ? {} : C;
-
+export function defineContext<C = {}>(
+  context: C,
+  extensions?: NativeExtension<C>[]
+): {
+  t: APIBuilder<C>;
+  createAPI: <Root extends Record<string, any>>(root: Root) => Root;
+} {
   return {
     /**
      * API builder object
@@ -178,9 +144,9 @@ export function createNativeAPI<C = {}>(options: NativeAPIOptions<Partial<C>> = 
       >(
         definition: {
           args: Args;
-          handler: (args: z.infer<Args>, ctx: ContextType) => Promise<Result<Output, Error>>;
+          handler: (ctx: C, args: z.infer<Args>) => Promise<Result<Output, Error>>;
         }
-      ): QueryDefinition<ContextType, z.infer<Args>, Output, Error> => {
+      ): QueryDefinition<C, z.infer<Args>, Output, Error> => {
         return {
           _type: "query",
           args: definition.args,
@@ -195,9 +161,9 @@ export function createNativeAPI<C = {}>(options: NativeAPIOptions<Partial<C>> = 
       >(
         definition: {
           args: Args;
-          handler: (args: z.infer<Args>, ctx: ContextType) => Promise<Result<Output, Error>>;
+          handler: (ctx: C, args: z.infer<Args>) => Promise<Result<Output, Error>>;
         }
-      ): MutationDefinition<ContextType, z.infer<Args>, Output, Error> => {
+      ): MutationDefinition<C, z.infer<Args>, Output, Error> => {
         return {
           _type: "mutation",
           args: definition.args,
@@ -208,20 +174,19 @@ export function createNativeAPI<C = {}>(options: NativeAPIOptions<Partial<C>> = 
       router: <R extends Record<string, any>>(routes: R): R => {
         return routes;
       },
-    } as NativeAPI<ContextType>,
+    } as APIBuilder<C>,
 
     /**
      * Creates a runtime API from endpoint definitions
+     * Context is already defined - no need to pass it again!
      *
      * @param root - Root object containing endpoints
-     * @param runtimeContext - Runtime context to inject
-     * @returns Activated API
+     * @returns Activated API with context injected
      */
     createAPI: <Root extends Record<string, any>>(
-      root: Root,
-      runtimeContext: ContextType
+      root: Root
     ): Root => {
-      return activateAPI(root, runtimeContext, options.extensions || []);
+      return activateAPI(root, context, extensions || []);
     },
   };
 }
@@ -250,7 +215,7 @@ function activateAPI<C>(
           );
         }
 
-        // Build full context
+        // Build full context with extensions
         let fullContext = { ...context };
         for (const ext of extensions) {
           if (ext.context) {
@@ -259,8 +224,8 @@ function activateAPI<C>(
           }
         }
 
-        // Call handler
-        return node.handler(parsed.data, fullContext);
+        // Call handler with ctx BEFORE args
+        return node.handler(fullContext, parsed.data);
       };
     }
     return node;
@@ -279,44 +244,4 @@ function activateAPI<C>(
 
   // Otherwise return as-is
   return node;
-}
-
-/**
- * Legacy wrapper to provide backward compatibility with old API
- * Maps old API to new native API
- */
-export function defineContextCompat<C = {}>(defaultContext?: Partial<C>) {
-  return {
-    withExtensions: (extensions: any[]) => {
-      // Map old extensions to new native extensions
-      const nativeExtensions: NativeExtension<any>[] = extensions.map((ext) => ({
-        name: ext.name,
-        context: ext.request ? async (state: any, ctx: any) => {
-          if (ext.request) {
-            return await ext.request(state, ctx);
-          }
-          return {};
-        } : undefined,
-        methods: ext.functions ? ext.functions() : undefined,
-      }));
-
-      const { t, createAPI } = createNativeAPI<any>({
-        context: defaultContext,
-        extensions: nativeExtensions,
-      });
-
-      // Old API returned { t, createAPI }
-      return {
-        t: {
-          ...t,
-          // Add methods from extensions
-          ...nativeExtensions.reduce((acc, ext) => ({
-            ...acc,
-            ...(ext.methods || {})
-          }), {} as any)
-        },
-        createAPI: (options: any) => createAPI(options.root, options.runtimeContext || {})
-      };
-    },
-  };
 }
