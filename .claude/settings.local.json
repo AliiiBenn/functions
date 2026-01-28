@@ -12,7 +12,8 @@
       "Bash(pnpm test:*)",
       "Bash(pnpm exec vitest run:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []
